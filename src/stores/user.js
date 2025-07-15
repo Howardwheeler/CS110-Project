@@ -2,9 +2,11 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 export const useUserStore = defineStore('user', () => {
+  //initial reference to user
   const currentUser = ref(null)
   const viewingUser = ref(null)
   
+  //creates a mock user
   const demoUser = {
     id: 'hwhee004@ucr.edu',
     posts: [
@@ -16,15 +18,18 @@ export const useUserStore = defineStore('user', () => {
     followingUsers: []
   }
 
+  //check if logged in/user exist
   function isLoggedIn() {
     return currentUser.value !== null
   }
 
+  //state for viewing profile
   function isViewingOwnProfile() {
     if (!viewingUser.value || !currentUser.value) return false
     return viewingUser.value.id === currentUser.value.id
   }
 
+  //demo user following list (only for new accounts rn)
   function whoToFollow() {
     if (!currentUser.value) return [];
     if (currentUser.value.id !== demoUser.id && 
@@ -34,11 +39,13 @@ export const useUserStore = defineStore('user', () => {
     return [];
   }
 
+  //loads post array up to 10
   function userPosts() {
     if (!viewingUser.value) return []
     return viewingUser.value.posts.slice(0, 10)
   }
 
+  //login status
   function login(email, password) {
     if (email === 'hwhee004@ucr.edu' && password === '1') {
       currentUser.value = demoUser
@@ -48,6 +55,7 @@ export const useUserStore = defineStore('user', () => {
     return false
   }
 
+  //create user for sign in
   function createTempUser(email) {
     const tempUser = {
       id: email,
@@ -61,11 +69,13 @@ export const useUserStore = defineStore('user', () => {
     return true
   }
 
+  //logs you out
   function logout() {
     currentUser.value = null
     viewingUser.value = null
   }
 
+  //adds and push new post
   function addPost(content) {
     if (!currentUser.value) return
     
@@ -77,6 +87,7 @@ export const useUserStore = defineStore('user', () => {
     })
   }
 
+  //increment and add user to following
   function followUser(userId) {
     if (!currentUser.value) return
     if (userId === demoUser.id) {
@@ -86,6 +97,7 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  //state for another user profile
   function viewUserProfile(userId) {
     if (userId === demoUser.id) {
       viewingUser.value = demoUser
