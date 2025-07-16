@@ -67,6 +67,11 @@ async function handlePost() {
 
     <!-- Posts -->
     <div class="content-section">
+      <div v-if="isOwnProfile" class="create-post">
+        <textarea v-model="content" placeholder="What's on your mind?" class="post-input" />
+        <button @click="handlePost" class="post-btn">Post</button>
+      </div>
+
       <div class="posts-feed">
         <div v-if="postStore.loading">Loading posts...</div>
 
@@ -79,11 +84,6 @@ async function handlePost() {
         </div>
 
         <div v-if="postStore.posts.length === 0">No posts to show</div>
-
-        <div v-if="isOwnProfile" class="create-post">
-          <textarea v-model="content" placeholder="What's on your mind?" class="post-input" />
-          <button @click="handlePost" class="post-btn">Post</button>
-        </div>
       </div>
     </div>
 
@@ -98,7 +98,6 @@ async function handlePost() {
     </div>
   </div>
 </template>
-
 
 <style scoped>
 .flex-box {
