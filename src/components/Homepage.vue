@@ -12,7 +12,9 @@ const postStore = usePostStore()
 const content = ref('')
 const recommended = ref([])
 
-const isOwnProfile = computed(() => userStore.isViewingOwnProfile())
+const isOwnProfile = computed(() => {
+  return userStore.viewingUser?.id === userStore.currentUser?.id
+})
 
 onMounted(async () => {
   if (isOwnProfile) {
@@ -65,11 +67,6 @@ async function handlePost() {
 
     <!-- Posts -->
     <div class="content-section">
-      <div v-if="isOwnProfile" class="create-post">
-        <textarea v-model="content" placeholder="What's on your mind?" class="post-input" />
-        <button @click="handlePost" class="post-btn">Post</button>
-      </div>
-
       <div class="posts-feed">
         <div v-if="postStore.loading">Loading posts...</div>
 
@@ -82,14 +79,22 @@ async function handlePost() {
         </div>
 
         <div v-if="postStore.posts.length === 0">No posts to show</div>
+
+        <div v-if="isOwnProfile" class="create-post">
+          <textarea v-model="content" placeholder="What's on your mind?" class="post-input" />
+          <button @click="handlePost" class="post-btn">Post</button>
+        </div>
       </div>
     </div>
 
     <!-- Who to follow -->
-    <div v-for="user in recommended" :key="user.id" class="follow-card">
-      <div @click="$router.push(`/user/${user.id}`)" class="follow-user">{{ user.email }}</div>
-      <button v-if="!userStore.followingUser(user.id)" @click="userStore.followUser(user.id)">Follow</button>
-      <button v-else >Following</button>
+    <div class="who-to-follow">
+      <h3>Who to Follow</h3>
+      <div v-for="user in recommended" :key="user.id" class="follow-card">
+        <div @click="$router.push(`/user/${user.id}`)" class="follow-user">{{ user.email }}</div>
+        <button v-if="!userStore.followingUser(user.id)" @click="userStore.followUser(user.id)">Follow</button>
+        <button v-else disabled>Following</button>
+      </div>
     </div>
   </div>
 </template>
@@ -176,12 +181,13 @@ button, .profile-btn, .login-btn {
 
 .post-input {
   width: 100%;
-  min-height: 80px;
+  font-size: x-large;
+  min-height: 100px;
   padding: 10px;
-  border: 1px solid #ddd;
   border-radius: 8px;
   margin-bottom: 10px;
-  resize: vertical;
+  resize: none;
+  overflow: none;
 }
 
 .post-btn {
