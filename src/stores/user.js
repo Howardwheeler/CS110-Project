@@ -1,37 +1,34 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
-import { doc, getDoc, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore'
+import { doc, getDoc, getDocs, setDoc, collection } from 'firebase/firestore'
 import { auth, firestore } from '@/firebaseResources'
 
 export const useUserStore = defineStore('user', () => {
   const currentUser = ref(null)
   const viewingUser = ref(null)
-  const userPosts = ref([])
-  const feedPosts = ref([])
   const loading = ref(false)
 
   async function init() {
     onAuthStateChanged(auth, async (user) => {
       if (user) {
         const userDoc = await getDoc(doc(firestore, 'users', user.uid))
-        if (userDoc.exists()) {
-          currentUser.value = {
-            id: user.uid,
-            email: user.email,
-            ...userDoc.data()
-          }
-          viewingUser.value = currentUser.value
-        } else {
-          currentUser.value = {
-            id: user.uid,
-            email: user.email,
-            feed: [],
-            followers: [],
-            following: [],
-            posts: []
-          }
+        const data = userDoc.exists() ? userDoc.data() : {
+          followers: [],
+          following: [],
+          posts: 0
         }
+
+        const formattedUser = {
+          id: user.uid,
+          email: user.email,
+          followers: data.followers,
+          following: data.following,
+          posts: data.posts
+        }
+
+        currentUser.value = formattedUser
+        viewingUser.value = formattedUser
       } else {
         currentUser.value = null
         viewingUser.value = null
@@ -43,75 +40,26 @@ export const useUserStore = defineStore('user', () => {
     await signOut(auth)
     currentUser.value = null
     viewingUser.value = null
-    userPosts.value = []
-    feedPosts.value = []
   }
 
   function isViewingOwnProfile() {
     return viewingUser.value?.id === currentUser.value?.id
   }
 
-  async function fetchUserPosts(userId) {
-    loading.value = true
-    try {
-      const q = query(
-        collection(firestore, 'posts'),
-        where('userId', '==', userId),
-        orderBy('timestamp', 'desc')
-      )
-      const querySnapshot = await getDocs(q)
-      userPosts.value = querySnapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data() 
-      }))
-    } catch (error) {
-      console.error('Error fetching user posts:', error)
-      userPosts.value = []
-    } finally {
-      loading.value = false
-    }
-  }
-
-  async function fetchFeedPosts() {
-    if (!currentUser.value) return
-    
-    loading.value = true
-    try {
-      const following = currentUser.value.following || []
-      const userIds = [currentUser.value.id, ...following].slice(0, 10)
-      
-      const q = query(
-        collection(firestore, 'posts'),
-        where('userId', 'in', userIds),
-        orderBy('timestamp', 'desc'),
-        limit(20)
-      )
-      const querySnapshot = await getDocs(q)
-      feedPosts.value = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }))
-    } catch (error) {
-      console.error('Error fetching feed:', error)
-      feedPosts.value = []
-    } finally {
-      loading.value = false
-    }
-  }
-
   async function viewUserProfile(userId) {
     if (userId === currentUser.value?.id) {
       viewingUser.value = currentUser.value
-      await fetchFeedPosts()
     } else {
       const userDoc = await getDoc(doc(firestore, 'users', userId))
       if (userDoc.exists()) {
+        const data = userDoc.data()
         viewingUser.value = {
           id: userId,
-          email: userDoc.data().email,
-          ...userDoc.data()
+          email: data.email,
+          followers: data.followers,
+          following: data.following,
+          posts: data.posts
         }
-        await fetchUserPosts(userId)
       }
     }
   }
@@ -123,8 +71,14 @@ export const useUserStore = defineStore('user', () => {
     const userDoc = await getDoc(userDocRef)
 
     if (userDoc.exists()) {
-      const updatedFollowing = [...userDoc.data().following, targetId]
-      await setDoc(userDocRef, { ...userDoc.data(), following: updatedFollowing })
+      const data = userDoc.data()
+      const updatedFollowing = [...data.following, targetId]
+
+      await setDoc(userDocRef, {
+        ...data,
+        following: updatedFollowing
+      })
+
       currentUser.value.following = updatedFollowing
     }
   }
@@ -133,22 +87,47 @@ export const useUserStore = defineStore('user', () => {
     const usersSnapshot = await getDocs(collection(firestore, 'users'))
     return usersSnapshot.docs
       .map(doc => ({ id: doc.id, ...doc.data() }))
-      .filter(u => u.id !== currentUser.value.id && !currentUser.value.following.includes(u.id))
+      .filter(user =>
+        user.id !== currentUser.value.id &&
+        !currentUser.value.following.includes(user.id)
+      )
+  }
+
+  function followingUser(userId) {
+    return currentUser.value?.following?.includes(userId) || false
+  }
+
+
+  async function incrementUserPostCount() {
+    if (!currentUser.value) return
+
+    const userRef = doc(firestore, 'users', currentUser.value.id)
+    const userSnap = await getDoc(userRef)
+
+    if (userSnap.exists()) {
+      const data = userSnap.data()
+      const newCount = (data.posts || 0) + 1
+
+      await setDoc(userRef, { ...data, posts: newCount })
+      currentUser.value.posts = newCount
+
+      if (isViewingOwnProfile()) {
+        viewingUser.value.posts = newCount
+      }
+    }
   }
 
   return {
     currentUser,
     viewingUser,
-    userPosts,
-    feedPosts,
     loading,
     init,
     logout,
     isViewingOwnProfile,
-    fetchUserPosts,
-    fetchFeedPosts,
     viewUserProfile,
     followUser,
     fetchRecommendedFollows,
+    followingUser,
+    incrementUserPostCount
   }
 })

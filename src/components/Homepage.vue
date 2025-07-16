@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { usePostStore } from '@/stores/post'
 
@@ -12,7 +12,7 @@ const postStore = usePostStore()
 const content = ref('')
 const recommended = ref([])
 
-const isOwnProfile = userStore.isViewingOwnProfile()
+const isOwnProfile = computed(() => userStore.isViewingOwnProfile())
 
 onMounted(async () => {
   if (isOwnProfile) {
@@ -34,6 +34,7 @@ watch(() => userStore.viewingUser?.id, async () => {
 async function handlePost() {
   if (!content.value.trim()) return
   await postStore.createPost(content.value)
+  await userStore.incrementUserPostCount()
   content.value = ''
 }
 </script>
@@ -43,7 +44,7 @@ async function handlePost() {
     <!-- Profile -->
     <div class="profile">
       <div class="profile-card">
-        <p class="profile-email">{{ props.user.email }}</p>
+        <div class="profile-email">{{ props.user.email }}</div>
         <div class="stats">
           <div class="stat">
             <strong>{{ props.user.posts?.length || 0 }}</strong><div>Posts</div>
@@ -56,10 +57,9 @@ async function handlePost() {
           </div>
         </div>
 
-        <RouterLink v-if="userStore.currentUser" :to="isOwnProfile ? '/login' : '/user'" @click="isOwnProfile ? userStore.logout() : null" class="profile-btn">
-          {{ isOwnProfile ? 'Logout' : 'Back to Profile' }}
-        </RouterLink>
-        <RouterLink v-else to="/login" class="login-btn">Login</RouterLink>
+        <RouterLink v-if="!userStore.currentUser" to="/login" class="login-btn">Login</RouterLink>
+        <RouterLink v-else-if="userStore.viewUserProfile()" to="/login" class="profile-btn" @click="userStore.logout">Logout</RouterLink>
+        <RouterLink v-else to="/user" class="profile-btn">Back to Profile</RouterLink>
       </div>
     </div>
 
@@ -75,23 +75,21 @@ async function handlePost() {
 
         <div v-for="post in postStore.posts" :key="post.id" class="post-card">
           <div class="post-header">
-            <p class="post-author" @click="$router.push(`/user/${post.userId}`)">{{ post.email }}</p>
+            <div class="post-author" @click="$router.push(`/user/${post.userId}`)">{{ post.email }}</div>
             <div class="post-time">{{ post.date }} • {{ post.time }}</div>
           </div>
           <div class="post-content">{{ post.content }}</div>
         </div>
 
-        <p v-if="postStore.posts.length === 0">No posts to show</p>
+        <div v-if="postStore.posts.length === 0">No posts to show</div>
       </div>
     </div>
 
     <!-- Who to follow -->
-    <div class="who-to-follow" v-if="isOwnProfile">
-      <h3>Who to Follow</h3>
-      <div v-for="user in recommended" :key="user.id" class="follow-card">
-        <p @click="$router.push(`/user/${user.id}`)" class="follow-user">{{ user.email }}</p>
-        <button @click="userStore.followUser(user.id)">Follow</button>
-      </div>
+    <div v-for="user in recommended" :key="user.id" class="follow-card">
+      <div @click="$router.push(`/user/${user.id}`)" class="follow-user">{{ user.email }}</div>
+      <button v-if="!userStore.followingUser(user.id)" @click="userStore.followUser(user.id)">Follow</button>
+      <button v-else >Following</button>
     </div>
   </div>
 </template>
