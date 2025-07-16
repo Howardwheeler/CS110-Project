@@ -1,9 +1,10 @@
 <script setup>
-import Home from '@/components/Homepage.vue'
+import { useUserStore } from '@/stores/user'
+import Homepage from '@/components/Homepage.vue'
+
+const userStore = useUserStore()
 </script>
 
 <template>
-  <main>
-    <Home />
-  </main>
+  <Homepage :user="userStore.currentUser" />
 </template>

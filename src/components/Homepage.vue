@@ -1,104 +1,101 @@
 <script setup>
-import { RouterLink } from 'vue-router'
-import { ref } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useUserStore } from '@/stores/user'
+import { usePostStore } from '@/stores/post'
+
+const props = defineProps({
+  user: Object
+})
 
 const userStore = useUserStore()
-const newPost = ref('')
+const postStore = usePostStore()
+const content = ref('')
+const recommended = ref([])
 
-function handlePost() {
-  if (newPost.value.trim() !== '') {
-    userStore.addPost(newPost.value)
-    newPost.value = ''
+const isOwnProfile = userStore.isViewingOwnProfile()
+
+onMounted(async () => {
+  if (isOwnProfile) {
+    await postStore.fetchFeed(userStore.currentUser)
+    recommended.value = await userStore.fetchRecommendedFollows()
+  } else {
+    await postStore.fetchUserPosts(props.user.id)
   }
+})
+
+watch(() => userStore.viewingUser?.id, async () => {
+  if (userStore.isViewingOwnProfile()) {
+    await postStore.fetchFeed(userStore.currentUser)
+  } else {
+    await postStore.fetchUserPosts(props.user.id)
+  }
+})
+
+async function handlePost() {
+  if (!content.value.trim()) return
+  await postStore.createPost(content.value)
+  content.value = ''
 }
 </script>
 
 <template>
-  <div class="flex-box">
-    <!-- Profile Section -->
-    <div class="column login-box">
-      <div v-if="userStore.currentUser">
-        <div>@{{ userStore.currentUser.id }}</div>
-        <div class="stats-box">
+  <div class="homepage-container">
+    <!-- Profile -->
+    <aside class="profile-section">
+      <div class="profile-card">
+        <p class="profile-email">{{ props.user.email }}</p>
+        <div class="profile-stats">
           <div class="stat">
-            <strong>{{ userStore.currentUser.posts?.length || 0 }}</strong>
-            <div>Posts</div>
+            <strong>{{ props.user.posts?.length || 0 }}</strong><span>Posts</span>
           </div>
           <div class="stat">
-            <strong>{{ userStore.currentUser.following || 0 }}</strong>
-            <div>Following</div>
+            <strong>{{ props.user.followers?.length || 0 }}</strong><span>Followers</span>
           </div>
           <div class="stat">
-            <strong>{{ userStore.currentUser.followers || 0 }}</strong>
-            <div>Followers</div>
+            <strong>{{ props.user.following?.length || 0 }}</strong><span>Following</span>
           </div>
         </div>
 
-        <RouterLink v-if="userStore.isViewingOwnProfile" to="/login" @click="userStore.logout">Logout</RouterLink>
-        <RouterLink v-else to="/" @click.prevent="userStore.viewUserProfile(userStore.currentUser.id)">
-          Back to my profile
+        <RouterLink v-if="userStore.currentUser" :to="isOwnProfile ? '/login' : '/user'" @click="isOwnProfile ? userStore.logout() : null" class="profile-btn">
+          {{ isOwnProfile ? 'Logout' : 'Back to Profile' }}
         </RouterLink>
+        <RouterLink v-else to="/login" class="login-btn">Login</RouterLink>
       </div>
-      <RouterLink v-else to="/login">Login</RouterLink>
-    </div>
+    </aside>
 
-    <!-- Posts Section -->
-    <div class="column posts-box">
-      <div class="posts-container">
-        <div
-          v-for="(post, index) in userStore.userPosts()"
-          :key="index"
-          class="post"
-        >
+    <!-- Posts -->
+    <main class="content-section">
+      <section v-if="isOwnProfile" class="create-post">
+        <textarea v-model="content" placeholder="What's on your mind?" class="post-input" />
+        <button @click="handlePost" class="post-btn">Post</button>
+      </section>
+
+      <section class="posts-feed">
+        <div v-if="postStore.loading">Loading posts...</div>
+
+        <article v-for="post in postStore.posts" :key="post.id" class="post-card">
           <div class="post-header">
-            <strong
-              @click="userStore.viewUserProfile(userStore.viewingUser.id)"
-              style="cursor:pointer;"
-            >
-              @{{ userStore.viewingUser.id }}
-            </strong>
-            <span>Date: {{ post.date }} {{ post.time }}</span>
+            <p class="post-author" @click="$router.push(`/user/${post.userId}`)">{{ post.email }}</p>
+            <span class="post-time">{{ post.date }} • {{ post.time }}</span>
           </div>
           <div class="post-content">{{ post.content }}</div>
-        </div>
-      </div>
+        </article>
 
-      <!-- Create Post -->
-      <div
-        v-if="isLoggedIn() && userStore.isViewingOwnProfile()"
-        class="create-post"
-      >
-        <h3>Create a post</h3>
-        <div class="post-input-row">
-          <input v-model="newPost" placeholder="Type here" />
-          <button @click="handlePost">Post</button>
-        </div>
-      </div>
-    </div>
+        <p v-if="postStore.posts.length === 0">No posts to show</p>
+      </section>
+    </main>
 
-    <!-- Who to Follow -->
-    <div class="column follow-box">
-      <h3>Who to follow:</h3>
-      <div v-if="userStore.whoToFollow().length > 0">
-        <div
-          v-for="user in userStore.whoToFollow()"
-          :key="user.id"
-          class="suggestion"
-        >
-          <span
-            @click="userStore.viewUserProfile(user.id)"
-            style="cursor:pointer;"
-          >
-            @{{ user.id }}
-          </span>
-          <button @click="userStore.followUser(user.id)">Follow</button>
-        </div>
+    <!-- Who to follow -->
+    <aside class="who-to-follow" v-if="isOwnProfile">
+      <h3>Who to Follow</h3>
+      <div v-for="user in recommended" :key="user.id" class="follow-card">
+        <p @click="$router.push(`/user/${user.id}`)" class="follow-user">{{ user.email }}</p>
+        <button @click="userStore.followUser(user.id)">Follow</button>
       </div>
-      <div v-else>No other users available</div>
-    </div>
+    </aside>
   </div>
 </template>
+
 
 <style scoped>
 .flex-box {
@@ -108,13 +105,17 @@ function handlePost() {
   width: 100%;
 }
 
-.column {
-  background-color: #f3f3f3;
-  border-radius: 12px;
-  padding: 10px;
-  margin: 10px;
-  font-size: large;
-  color: black;
+.profile-card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.profile-email {
+  margin: 0 0 15px;
+  font-size: 1.1rem;
+  color: #333;
 }
 
 .login-box {
@@ -128,113 +129,129 @@ function handlePost() {
 }
 
 .stat {
-  background-color: white;
+  background: #f5f5f5;
   border-radius: 8px;
+  padding: 10px;
   text-align: center;
-  flex: 1;
-  margin: 10px 5px;
 }
 
 .stat strong {
   display: block;
-  font-size: x-large;
-  color: rgb(0, 151, 189);
+  font-size: 1.2rem;
+  color: #0097bd;
 }
 
-.stat div {
-  font-size: medium;
-  color: gray;
+.stat span {
+  font-size: 0.8rem;
+  color: #666;
 }
 
-.posts-box {
-  width: 55%;
+button, .login-btn {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.logout-btn {
+  background: #ff4444;
+  color: white;
+}
+
+.logout-btn:hover {
+  background: #cc0000;
+}
+
+.profile-btn, .login-btn {
+  background: #0097bd;
+  color: white;
+}
+
+.profile-btn:hover, .login-btn:hover {
+  background: #007799;
+}
+
+.content-section {
   display: flex;
   flex-direction: column;
-  min-height: 250px;
-  max-height: 650px;
+  gap: 20px;
 }
 
-.posts-container {
-  overflow-y: auto;
+.create-post {
+  background: #fff;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.posts-container::-webkit-scrollbar {
-  display: none;
+.post-input {
+  width: 100%;
+  min-height: 80px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  margin: 10px 0;
+  resize: vertical;
+}
+
+.post-btn {
+  background: #0097bd;
+  color: white;
+  padding: 8px 15px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.post-btn:hover {
+  background: #007799;
+}
+
+.posts-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.post-card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 15px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .post-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 10px;
 }
 
-.post {
-  background-color: white;
-  border-radius: 8px;
-  padding: 10px;
-  margin-bottom: 10px;
-  text-align: left;
+.post-author {
+  color: #0097bd;
+  cursor: pointer;
+  margin: 0;
+}
+
+.post-author:hover {
+  text-decoration: underline;
+}
+
+.post-time {
+  color: #666;
+  font-size: 0.8rem;
 }
 
 .post-content {
-  font-size: large;
-  color: black;
-  margin-left: 5px;
-  overflow: hidden;
+  line-height: 1.5;
 }
 
-.post-input-row {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.post-input-row input {
-  flex: 1;
-  padding: 10px;
-  border-radius: 6px;
-  font-size: medium;
-}
-
-.post-input-row button {
-  padding: 10px 20px;
-  background-color: rgba(0, 151, 189, 1);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: medium;
-}
-
-.follow-box {
-  width: 20%;
+.loading, .empty-feed {
   text-align: center;
-}
-
-.suggestion {
-  background-color: white;
-  margin: 5px 0px;
-  padding: 5px;
-  border-radius: 6px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: medium;
-}
-
-.suggestion button {
-  background-color: rgba(0, 151, 189, 1);
-  color: white;
-  border: none;
-  padding: 5px 10px;
-  border-radius: 4px;
-  font-size: medium;
-}
-
-a {
-  color: white;
-  text-decoration: none;
-  background-color: rgba(0, 151, 189, 1);
-  border-radius: 8px;
-  display: block;
+  padding: 20px;
+  color: #666;
 }
 </style>

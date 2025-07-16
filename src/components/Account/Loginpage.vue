@@ -27,20 +27,13 @@ async function handleSubmit() {
 
   try {
     if (activeTab.value === 'login') {
-      // LOGIN FLOW
       const userCredential = await signInWithEmailAndPassword(auth, email.value, password.value)
       const user = userCredential.user
-
-      // Optionally update userStore or other state here
-      // userStore.login(user.email, password.value)
-
       router.push('/')
     } else {
-      // SIGNUP FLOW
       const userCredential = await createUserWithEmailAndPassword(auth, email.value, password.value)
       const user = userCredential.user
-
-      // Create Firestore document for new user
+      
       await setDoc(doc(db, 'users', user.uid), {
         email: user.email,
         feed: [],

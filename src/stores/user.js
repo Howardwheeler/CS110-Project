@@ -1,14 +1,16 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, getDoc, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore'
 import { auth, firestore } from '@/firebaseResources'
 
 export const useUserStore = defineStore('user', () => {
   const currentUser = ref(null)
   const viewingUser = ref(null)
+  const userPosts = ref([])
+  const feedPosts = ref([])
+  const loading = ref(false)
 
-  // Listen for Firebase login/logout changes
   async function init() {
     onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -21,7 +23,6 @@ export const useUserStore = defineStore('user', () => {
           }
           viewingUser.value = currentUser.value
         } else {
-          // fallback: user exists in auth but no Firestore doc
           currentUser.value = {
             id: user.uid,
             email: user.email,
@@ -38,57 +39,116 @@ export const useUserStore = defineStore('user', () => {
     })
   }
 
-  // Logout method
   async function logout() {
     await signOut(auth)
     currentUser.value = null
     viewingUser.value = null
+    userPosts.value = []
+    feedPosts.value = []
   }
 
-  // Optional helpers
   function isViewingOwnProfile() {
     return viewingUser.value?.id === currentUser.value?.id
   }
 
-  function userPosts() {
-    return viewingUser.value?.posts?.slice(0, 10) || []
+  async function fetchUserPosts(userId) {
+    loading.value = true
+    try {
+      const q = query(
+        collection(firestore, 'posts'),
+        where('userId', '==', userId),
+        orderBy('timestamp', 'desc')
+      )
+      const querySnapshot = await getDocs(q)
+      userPosts.value = querySnapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data() 
+      }))
+    } catch (error) {
+      console.error('Error fetching user posts:', error)
+      userPosts.value = []
+    } finally {
+      loading.value = false
+    }
   }
 
-  function viewUserProfile(userData) {
-    viewingUser.value = userData
+  async function fetchFeedPosts() {
+    if (!currentUser.value) return
+    
+    loading.value = true
+    try {
+      const following = currentUser.value.following || []
+      const userIds = [currentUser.value.id, ...following].slice(0, 10)
+      
+      const q = query(
+        collection(firestore, 'posts'),
+        where('userId', 'in', userIds),
+        orderBy('timestamp', 'desc'),
+        limit(20)
+      )
+      const querySnapshot = await getDocs(q)
+      feedPosts.value = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
+    } catch (error) {
+      console.error('Error fetching feed:', error)
+      feedPosts.value = []
+    } finally {
+      loading.value = false
+    }
   }
 
-  async function viewOwnPosts(user) {
-    const posts = [];
-
-    if (!user?.value?.following || user.value.following.length === 0) {
-      return posts; // return empty if no followings
+  async function viewUserProfile(userId) {
+    if (userId === currentUser.value?.id) {
+      viewingUser.value = currentUser.value
+      await fetchFeedPosts()
+    } else {
+      const userDoc = await getDoc(doc(firestore, 'users', userId))
+      if (userDoc.exists()) {
+        viewingUser.value = {
+          id: userId,
+          email: userDoc.data().email,
+          ...userDoc.data()
+        }
+        await fetchUserPosts(userId)
+      }
     }
+  }
 
-    // For each following user, fetch their posts
-    for (let followedUserId of user.value.following) {
-      const postsQuery = query(
-        collection(db, "posts"),
-        where("userId", "==", followedUserId)
-      );
+  async function followUser(targetId) {
+    if (!currentUser.value) return
 
-      const querySnapshot = await getDocs(postsQuery);
-      querySnapshot.forEach((doc) => {
-        posts.push({ id: doc.id, ...doc.data() });
-      });
+    const userDocRef = doc(firestore, 'users', currentUser.value.id)
+    const userDoc = await getDoc(userDocRef)
+
+    if (userDoc.exists()) {
+      const updatedFollowing = [...userDoc.data().following, targetId]
+      await setDoc(userDocRef, { ...userDoc.data(), following: updatedFollowing })
+      currentUser.value.following = updatedFollowing
     }
+  }
 
-    return posts;
+  async function fetchRecommendedFollows() {
+    const usersSnapshot = await getDocs(collection(firestore, 'users'))
+    return usersSnapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .filter(u => u.id !== currentUser.value.id && !currentUser.value.following.includes(u.id))
   }
 
   return {
     currentUser,
     viewingUser,
+    userPosts,
+    feedPosts,
+    loading,
     init,
     logout,
     isViewingOwnProfile,
-    userPosts,
+    fetchUserPosts,
+    fetchFeedPosts,
     viewUserProfile,
-    viewOwnPosts
+    followUser,
+    fetchRecommendedFollows,
   }
 })
