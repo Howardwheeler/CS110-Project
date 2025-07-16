@@ -1,42 +1,60 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useUserStore } from '@/stores/user'
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
+import { getFirestore, doc, setDoc } from 'firebase/firestore'
 
-//login initial declaration
+const auth = getAuth()
+const db = getFirestore()
+const router = useRouter()
+
 const activeTab = ref('login')
 const email = ref('')
 const password = ref('')
+const loading = ref(false)
 
-//user connection
-const userStore = useUserStore()
-const router = useRouter()
-
-// switch between login/signup
 function switchTab(tab) {
   activeTab.value = tab
 }
 
-// check email/signup
-function handleSubmit() {
-  if (activeTab.value === 'login') {
-    if (email.value === 'hwhee004@ucr.edu' && password.value === '1') {
-      const success = userStore.login(email.value, password.value)
-      if (success) {
-        router.push('/')
-      }
+async function handleSubmit() {
+  if (!email.value || !password.value) {
+    alert('Please enter both email and password')
+    return
+  }
+
+  loading.value = true
+
+  try {
+    if (activeTab.value === 'login') {
+      // LOGIN FLOW
+      const userCredential = await signInWithEmailAndPassword(auth, email.value, password.value)
+      const user = userCredential.user
+
+      // Optionally update userStore or other state here
+      // userStore.login(user.email, password.value)
+
+      router.push('/')
     } else {
-      alert('Wrong Account or Password')
+      // SIGNUP FLOW
+      const userCredential = await createUserWithEmailAndPassword(auth, email.value, password.value)
+      const user = userCredential.user
+
+      // Create Firestore document for new user
+      await setDoc(doc(db, 'users', user.uid), {
+        email: user.email,
+        feed: [],
+        followers: [],
+        following: [],
+        posts: []
+      })
+
+      router.push('/')
     }
-  } else {
-    if (email.value && password.value) {
-      const success = userStore.createTempUser(email.value)
-      if (success) {
-        router.push('/')
-      }
-    } else {
-      alert('Please enter both email and password')
-    }
+  } catch (error) {
+    alert(error.message)
+  } finally {
+    loading.value = false
   }
 }
 </script>

@@ -18,26 +18,25 @@ function handlePost() {
   <div class="flex-box">
     <!-- Profile Section -->
     <div class="column login-box">
-      <div v-if="userStore.isLoggedIn()">
-        <div>@{{ userStore.viewingUser.id }}</div>
+      <div v-if="userStore.currentUser">
+        <div>@{{ userStore.currentUser.id }}</div>
         <div class="stats-box">
           <div class="stat">
-            <strong>{{ userStore.viewingUser.posts.length }}</strong>
+            <strong>{{ userStore.currentUser.posts?.length || 0 }}</strong>
             <div>Posts</div>
           </div>
           <div class="stat">
-            <strong>{{ userStore.viewingUser.following }}</strong>
+            <strong>{{ userStore.currentUser.following || 0 }}</strong>
             <div>Following</div>
           </div>
           <div class="stat">
-            <strong>{{ userStore.viewingUser.followers }}</strong>
+            <strong>{{ userStore.currentUser.followers || 0 }}</strong>
             <div>Followers</div>
           </div>
         </div>
-        <RouterLink v-if="userStore.isViewingOwnProfile()" to="/login" @click="userStore.logout">
-          Logout
-        </RouterLink>
-        <RouterLink v-else to="/" @click="userStore.viewUserProfile(userStore.currentUser.id)">
+
+        <RouterLink v-if="userStore.isViewingOwnProfile" to="/login" @click="userStore.logout">Logout</RouterLink>
+        <RouterLink v-else to="/" @click.prevent="userStore.viewUserProfile(userStore.currentUser.id)">
           Back to my profile
         </RouterLink>
       </div>
@@ -47,21 +46,29 @@ function handlePost() {
     <!-- Posts Section -->
     <div class="column posts-box">
       <div class="posts-container">
-        <div v-for="(post, index) in userStore.userPosts()" :key="index" class="post">
+        <div
+          v-for="(post, index) in userStore.userPosts()"
+          :key="index"
+          class="post"
+        >
           <div class="post-header">
-            <strong @click="userStore.viewUserProfile(userStore.viewingUser.id)">
+            <strong
+              @click="userStore.viewUserProfile(userStore.viewingUser.id)"
+              style="cursor:pointer;"
+            >
               @{{ userStore.viewingUser.id }}
             </strong>
             <span>Date: {{ post.date }} {{ post.time }}</span>
           </div>
-          <div class="post-content">
-            {{ post.content }}
-          </div>
+          <div class="post-content">{{ post.content }}</div>
         </div>
       </div>
 
       <!-- Create Post -->
-      <div v-if="userStore.isLoggedIn() && userStore.isViewingOwnProfile()">
+      <div
+        v-if="isLoggedIn() && userStore.isViewingOwnProfile()"
+        class="create-post"
+      >
         <h3>Create a post</h3>
         <div class="post-input-row">
           <input v-model="newPost" placeholder="Type here" />
@@ -74,8 +81,15 @@ function handlePost() {
     <div class="column follow-box">
       <h3>Who to follow:</h3>
       <div v-if="userStore.whoToFollow().length > 0">
-        <div v-for="user in userStore.whoToFollow()" :key="user.id" class="suggestion">
-          <span @click="userStore.viewUserProfile(user.id)">
+        <div
+          v-for="user in userStore.whoToFollow()"
+          :key="user.id"
+          class="suggestion"
+        >
+          <span
+            @click="userStore.viewUserProfile(user.id)"
+            style="cursor:pointer;"
+          >
             @{{ user.id }}
           </span>
           <button @click="userStore.followUser(user.id)">Follow</button>
@@ -105,7 +119,7 @@ function handlePost() {
 
 .login-box {
   width: 20%;
-  text-align: center
+  text-align: center;
 }
 
 .stats-box {
@@ -221,6 +235,6 @@ a {
   text-decoration: none;
   background-color: rgba(0, 151, 189, 1);
   border-radius: 8px;
-  display:  block;
+  display: block;
 }
 </style>
