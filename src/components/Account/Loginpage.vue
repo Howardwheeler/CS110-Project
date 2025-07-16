@@ -1,74 +1,78 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useUserStore } from '@/stores/user'
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
 import { getFirestore, doc, setDoc } from 'firebase/firestore'
 
-//get firebase auth, firestore, and router for link
+const userStore = useUserStore()
+const router = useRouter()
 const auth = getAuth()
 const db = getFirestore()
-const router = useRouter()
 
-//initial constructor
 const activeTab = ref('login')
 const email = ref('')
 const password = ref('')
 
-//login vs signup switch
 function switchTab(tab) {
   activeTab.value = tab
 }
 
 async function handleSubmit() {
-  if (!email.value || !password.value) { //check if both fields valid
+  if (!email.value || !password.value) {
     alert('Please enter both email and password')
     return
   }
 
   try {
-    if (activeTab.value === 'login') { //check for login through firebase, then go home
+    if (activeTab.value === 'login') {
       const userCredential = await signInWithEmailAndPassword(auth, email.value, password.value)
-      const user = userCredential.user
-      router.push('/')
-    } else {  //create new auth, then go home
+      userStore.init()
+      router.push('/user')
+    } else {
       const userCredential = await createUserWithEmailAndPassword(auth, email.value, password.value)
       const user = userCredential.user
-
-      await setDoc(doc(db, 'users', user.uid), {  //creates a new document in user collections
+      await setDoc(doc(db, 'users', user.uid), {
         email: user.email,
         followers: [],
         following: [],
         posts: 0
       }, { merge: true })
-
-      router.push('/')
+      userStore.init()
+      router.push('/user')
     }
   } catch (error) {
-    alert(error.message) //check for eror in login
+    alert(error.message)
   }
+}
+
+function handleLogout() {
+  userStore.logout()
+  router.push('/login')
 }
 </script>
 
 <template>
   <div class="box">
-
-    <!--login vs signup-->
-    <div class="tabs">
-      <div class="tab" :class="{ active: activeTab === 'login' }" @click="switchTab('login')">
-        Login
+    <!-- Conditional based on login -->
+    <div class="form" v-if="!userStore.currentUser">
+      <div class="tabs">
+        <div class="tab" :class="{ active: activeTab === 'login' }" @click="switchTab('login')">Login</div>
+        <div class="tab" :class="{ active: activeTab === 'signup' }" @click="switchTab('signup')">Sign Up</div>
       </div>
-      <div class="tab" :class="{ active: activeTab === 'signup' }" @click="switchTab('signup')">
-        Sign Up
-      </div>
-    </div>
 
-    <!--fill in-->
-    <div class="form">
       <input v-model="email" type="email" placeholder="Email" />
       <input v-model="password" type="password" placeholder="Password" />
       <button @click="handleSubmit">
         {{ activeTab === 'login' ? 'Sign In' : 'Create' }}
       </button>
+    </div>
+
+    <div class="form" v-else>
+      <div class="tab">
+        {{ userStore.currentUser.email }}
+      </div>
+      <button @click="handleLogout">Logout</button>
     </div>
   </div>
 </template>
@@ -121,6 +125,7 @@ async function handleSubmit() {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    margin: auto 10px;
 }
 
 input {
@@ -141,5 +146,6 @@ button {
     border-radius: 20px;
     font-size: xx-large;
     text-align: center;
+    cursor: pointer;
 }
 </style>

@@ -1,44 +1,54 @@
 <script setup>
 import { ref, onMounted, watch, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { usePostStore } from '@/stores/post'
 
-//makes a prop to access user as an object
-const props = defineProps({
-  user: Object
-})
-
-//initialization
+const route = useRoute()
 const userStore = useUserStore()
 const postStore = usePostStore()
+
+// local reactive states
 const content = ref('')
 const recommended = ref([])
+const profileUser = ref(null)
+const recentUsers = ref([])
 
-//checks if viewing profile is said profile
+// determine if viewing own profile
 const isOwnProfile = computed(() => {
-  return userStore.viewingUser?.id === userStore.currentUser?.id
+  return profileUser.value?.id === userStore.currentUser?.id
 })
 
-//fetches feed or user feed depending on what profile
+// fetch posts and user info when mounted
 onMounted(async () => {
-  if (isOwnProfile) {
+  const userId = route.params.id
+  recentUsers.value = await userStore.fetchRecentUsers(5)
+
+  if (!userId || userId === userStore.currentUser?.id) {
+    profileUser.value = userStore.currentUser
     await postStore.fetchFeed(userStore.currentUser)
     recommended.value = await userStore.fetchRecommendedFollows()
   } else {
-    await postStore.fetchUserPosts(props.user.id)
+    await userStore.viewUserProfile(userId)
+    profileUser.value = userStore.viewingUser
+    await postStore.fetchUserPosts(userId)
   }
 })
 
-//reactive mount p much
-watch(() => userStore.viewingUser?.id, async () => {
-  if (userStore.isViewingOwnProfile()) {
+// watch for route param changes (e.g. clicking on other profiles)
+watch(() => route.params.id, async (newId) => {
+  if (!newId || newId === userStore.currentUser?.id) {
+    profileUser.value = userStore.currentUser
     await postStore.fetchFeed(userStore.currentUser)
+    recommended.value = await userStore.fetchRecommendedFollows()
   } else {
-    await postStore.fetchUserPosts(props.user.id)
+    await userStore.viewUserProfile(newId)
+    profileUser.value = userStore.viewingUser
+    await postStore.fetchUserPosts(newId)
   }
 })
 
-//puts new post in database and increment count
+// handle post creation
 async function handlePost() {
   if (!content.value.trim()) return
   await postStore.createPost(content.value)
@@ -48,25 +58,24 @@ async function handlePost() {
 </script>
 
 <template>
-  <div class="flex-box">
+  <div v-if="profileUser" class="flex-box">
     <!-- Profile -->
     <div class="profile">
       <div class="profile-card">
-        <div class="profile-email">{{ props.user.email }}</div>
+        <div class="profile-email">{{ profileUser.email }}</div>
         <div class="stats">
           <div class="stat">
-            <strong>{{ props.user.posts || 0 }}</strong><div>Posts</div>
+            <strong>{{ profileUser.posts || 0 }}</strong><div>Posts</div>
           </div>
           <div class="stat">
-            <strong>{{ props.user.followers?.length || 0 }}</strong><div>Followers</div>
+            <strong>{{ profileUser.followers?.length || 0 }}</strong><div>Followers</div>
           </div>
           <div class="stat">
-            <strong>{{ props.user.following?.length || 0 }}</strong><div>Following</div>
+            <strong>{{ profileUser.following?.length || 0 }}</strong><div>Following</div>
           </div>
         </div>
-
-        <RouterLink v-if="!userStore.currentUser" to="/login" class="login-btn">Login</RouterLink>
-        <RouterLink v-else-if="isOwnProfile" to="/login" class="profile-btn" @click="userStore.logout">Logout</RouterLink>
+        <RouterLink v-if="isOwnProfile" to="/logout" class="profile-btn" @click="userStore.logout">Logout</RouterLink>
+        <template v-else-if="!userStore.currentUser"></template>
         <RouterLink v-else to="/user" class="profile-btn">Back to Profile</RouterLink>
       </div>
     </div>
@@ -95,15 +104,33 @@ async function handlePost() {
 
     <!-- Who to follow -->
     <div class="who-to-follow">
-      <h3>Who to Follow</h3>
-      <div v-for="user in recommended" :key="user.id" class="follow-card">
-        <div @click="$router.push(`/user/${user.id}`)" class="follow-user">{{ user.email }}</div>
-        <button v-if="!userStore.followingUser(user.id)" @click="userStore.followUser(user.id)">Follow</button>
+      <h3>{{ userStore.currentUser ? 'Who to Follow' : 'Recent Users' }}</h3>
+
+      <div v-if="userStore.currentUser === userStore.viewingUser">
+        <div v-for="user in recommended" :key="user.id" class="follow-card">
+          <div @click="$router.push(`/user/${user.id}`)" class="follow-user">{{ user.email }}</div>
+          <button v-if="!userStore.followingUser(user.id)" @click="userStore.followUser(user.id)">Follow</button>
+          <button v-else disabled>Following</button>
+        </div>
+      </div>
+      <div v-else-if="userStore.viewingUser" class="follow-card">
+        <div class="follow-user">{{ userStore.viewingUser.email }}</div>
+        <button v-if="!userStore.followingUser(userStore.viewingUser.id)" @click="userStore.followUser(userStore.viewingUser.id)">Follow</button>
         <button v-else disabled>Following</button>
+      </div>
+      <div v-else>
+        <div v-for="user in recentUsers" :key="user.id" class="follow-card">
+          <div @click="$router.push(`/user/${user.id}`)" class="follow-user">{{ user.email }}</div>
+        </div>
       </div>
     </div>
   </div>
+
+  <div v-else class="loading-screen">
+    Loading profile...
+  </div>
 </template>
+
 
 <style scoped>
 .flex-box {

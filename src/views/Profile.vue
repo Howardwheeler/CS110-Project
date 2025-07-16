@@ -1,17 +1,7 @@
 <script setup>
-import { useUserStore } from '@/stores/user'
-import { onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import Homepage from '@/components/Homepage.vue'
-
-const userStore = useUserStore()
-const route = useRoute()
-
-onMounted(() => {
-  userStore.viewUserProfile(route.params.id)
-})
+import Homepage from '@/components/Home/Homepage.vue'
 </script>
 
 <template>
-  <Homepage :user="userStore.viewingUser" />
+  <Homepage />
 </template>

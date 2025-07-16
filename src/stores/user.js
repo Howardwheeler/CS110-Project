@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
-import { doc, getDoc, getDocs, setDoc, collection } from 'firebase/firestore'
+import { doc, getDoc, getDocs, setDoc, collection, query, limit } from 'firebase/firestore'
 import { auth, firestore } from '@/firebaseResources'
 
 export const useUserStore = defineStore('user', () => {
@@ -73,19 +73,34 @@ export const useUserStore = defineStore('user', () => {
   async function followUser(targetId) {
     if (!currentUser.value) return
 
-    const userDocRef = doc(firestore, 'users', currentUser.value.id)
-    const userDoc = await getDoc(userDocRef)
+    //Update current user's following
+    const currentUserRef = doc(firestore, 'users', currentUser.value.id)
+    const currentUserSnap = await getDoc(currentUserRef)
 
-    if (userDoc.exists()) {
-      const data = userDoc.data()
-      const updatedFollowing = [...data.following, targetId]
+    if (currentUserSnap.exists()) {
+      const currentData = currentUserSnap.data()
+      const updatedFollowing = [...new Set([...currentData.following, targetId])]
 
-      await setDoc(userDocRef, {
-        ...data,
+      await setDoc(currentUserRef, {
+        ...currentData,
         following: updatedFollowing
       })
 
       currentUser.value.following = updatedFollowing
+    }
+
+    //Update target user's followers
+    const targetUserRef = doc(firestore, 'users', targetId)
+    const targetUserSnap = await getDoc(targetUserRef)
+
+    if (targetUserSnap.exists()) {
+      const targetData = targetUserSnap.data()
+      const updatedFollowers = [...new Set([...targetData.followers, currentUser.value.id])]
+
+      await setDoc(targetUserRef, {
+        ...targetData,
+        followers: updatedFollowers
+      })
     }
   }
 
@@ -125,6 +140,17 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  async function fetchRecentUsers(max = 5) {
+    try {
+      const q = query(collection(firestore, 'users'), limit(max))
+      const snapshot = await getDocs(q)
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    } catch (err) {
+      console.error('Failed to fetch recent users:', err)
+      return []
+    }
+  }
+
   return {
     currentUser,
     viewingUser,
@@ -136,6 +162,7 @@ export const useUserStore = defineStore('user', () => {
     followUser,
     fetchRecommendedFollows,
     followingUser,
-    incrementUserPostCount
+    incrementUserPostCount,
+    fetchRecentUsers
   }
 })
