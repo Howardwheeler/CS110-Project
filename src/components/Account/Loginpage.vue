@@ -33,14 +33,13 @@ async function handleSubmit() {
     } else {
       const userCredential = await createUserWithEmailAndPassword(auth, email.value, password.value)
       const user = userCredential.user
-      
+
       await setDoc(doc(db, 'users', user.uid), {
         email: user.email,
-        feed: [],
         followers: [],
         following: [],
-        posts: []
-      })
+        posts: 0
+      }, { merge: true })
 
       router.push('/')
     }
@@ -93,6 +92,7 @@ async function handleSubmit() {
     justify-content: space-around;
     margin: 35px;
     position: relative;
+    cursor: pointer;
 }
 
 .tab {

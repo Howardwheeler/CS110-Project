@@ -5,10 +5,7 @@ import Navigation from '@/components/Navigation.vue'
 import { useUserStore } from '@/stores/user'
 
 const userStore = useUserStore()
-
-onMounted(() => {
-  userStore.init()
-})
+userStore.init()
 </script>
 
 <template>

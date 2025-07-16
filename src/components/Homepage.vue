@@ -49,7 +49,7 @@ async function handlePost() {
         <div class="profile-email">{{ props.user.email }}</div>
         <div class="stats">
           <div class="stat">
-            <strong>{{ props.user.posts?.length || 0 }}</strong><div>Posts</div>
+            <strong>{{ props.user.posts || 0 }}</strong><div>Posts</div>
           </div>
           <div class="stat">
             <strong>{{ props.user.followers?.length || 0 }}</strong><div>Followers</div>
