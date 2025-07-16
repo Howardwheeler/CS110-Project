@@ -1,123 +1,141 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { onAuthStateChanged, signOut } from 'firebase/auth'
+import { doc, getDoc, getDocs, setDoc, collection } from 'firebase/firestore'
+import { auth, firestore } from '@/firebaseResources'
 
 export const useUserStore = defineStore('user', () => {
-  //initial reference to user
+  //initial constructor
   const currentUser = ref(null)
   const viewingUser = ref(null)
-  
-  //creates a mock user
-  const demoUser = {
-    id: 'hwhee004@ucr.edu',
-    posts: [
-      { content: 'Second post!', date: '01-01-2025', time: '10:45:09' },
-      { content: 'Hello world!', date: '01-02-2025', time: '10:44:09' }
-    ],
-    followers: 1,
-    following: 1,
-    followingUsers: []
+  const loading = ref(false)
+
+  //initializes a user 
+  async function init() {
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const userDoc = await getDoc(doc(firestore, 'users', user.uid))
+        const data = userDoc.exists() ? userDoc.data() : {
+          followers: [],
+          following: [],
+          posts: 0
+        }
+
+        const formattedUser = {
+          id: user.uid,
+          email: user.email,
+          followers: data.followers,
+          following: data.following,
+          posts: data.posts
+        }
+
+        currentUser.value = formattedUser
+        viewingUser.value = formattedUser
+      } else {
+        currentUser.value = null
+        viewingUser.value = null
+      }
+    })
   }
 
-  //check if logged in/user exist
-  function isLoggedIn() {
-    return currentUser.value !== null
-  }
-
-  //state for viewing profile
-  function isViewingOwnProfile() {
-    if (!viewingUser.value || !currentUser.value) return false
-    return viewingUser.value.id === currentUser.value.id
-  }
-
-  //demo user following list (only for new accounts rn)
-  function whoToFollow() {
-    if (!currentUser.value) return [];
-    if (currentUser.value.id !== demoUser.id && 
-        !currentUser.value.followingUsers.includes(demoUser.id)) {
-      return [demoUser];
-    }
-    return [];
-  }
-
-  //loads post array up to 10
-  function userPosts() {
-    if (!viewingUser.value) return []
-    return viewingUser.value.posts.slice(0, 10)
-  }
-
-  //login status
-  function login(email, password) {
-    if (email === 'hwhee004@ucr.edu' && password === '1') {
-      currentUser.value = demoUser
-      viewingUser.value = demoUser
-      return true
-    }
-    return false
-  }
-
-  //create user for sign in
-  function createTempUser(email) {
-    const tempUser = {
-      id: email,
-      posts: [],
-      followers: 1,
-      following: 1,
-      followingUsers: []
-    }
-    currentUser.value = tempUser
-    viewingUser.value = tempUser
-    return true
-  }
-
-  //logs you out
-  function logout() {
+  //sign out of user lol
+  async function logout() {
+    await signOut(auth)
     currentUser.value = null
     viewingUser.value = null
   }
 
-  //adds and push new post
-  function addPost(content) {
-    if (!currentUser.value) return
-    
-    const now = new Date()
-    currentUser.value.posts.unshift({
-      content,
-      date: now.toLocaleDateString(),
-      time: now.toLocaleTimeString()
-    })
+  //checks if cur user os view user
+  function isViewingOwnProfile() {
+    return viewingUser.value?.id === currentUser.value?.id
   }
 
-  //increment and add user to following
-  function followUser(userId) {
-    if (!currentUser.value) return
-    if (userId === demoUser.id) {
-      currentUser.value.following += 1
-      demoUser.followers += 1
-      currentUser.value.followingUsers.push(userId)
+  //loads stats of another user to view
+  async function viewUserProfile(userId) {
+    if (userId === currentUser.value?.id) {
+      viewingUser.value = currentUser.value
+    } else {
+      const userDoc = await getDoc(doc(firestore, 'users', userId))
+      if (userDoc.exists()) {
+        const data = userDoc.data()
+        viewingUser.value = {
+          id: userId,
+          email: data.email,
+          followers: data.followers,
+          following: data.following,
+          posts: data.posts
+        }
+      }
     }
   }
 
-  //state for another user profile
-  function viewUserProfile(userId) {
-    if (userId === demoUser.id) {
-      viewingUser.value = demoUser
-    } else if (currentUser.value && userId === currentUser.value.id) {
-      viewingUser.value = currentUser.value
+  //increment follower and adds to following array
+  async function followUser(targetId) {
+    if (!currentUser.value) return
+
+    const userDocRef = doc(firestore, 'users', currentUser.value.id)
+    const userDoc = await getDoc(userDocRef)
+
+    if (userDoc.exists()) {
+      const data = userDoc.data()
+      const updatedFollowing = [...data.following, targetId]
+
+      await setDoc(userDocRef, {
+        ...data,
+        following: updatedFollowing
+      })
+
+      currentUser.value.following = updatedFollowing
+    }
+  }
+
+  //gets who to follow by checking non-followed users in docs
+  async function fetchRecommendedFollows() {
+    const usersSnapshot = await getDocs(collection(firestore, 'users'))
+    return usersSnapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .filter(user =>
+        user.id !== currentUser.value.id &&
+        !currentUser.value.following.includes(user.id)
+      )
+  }
+
+  //returns followed user
+  function followingUser(userId) {
+    return currentUser.value?.following?.includes(userId) || false
+  }
+
+  //per post, increment post count in docs
+  async function incrementUserPostCount() {
+    if (!currentUser.value) return
+
+    const userRef = doc(firestore, 'users', currentUser.value.id)
+    const userSnap = await getDoc(userRef)
+
+    if (userSnap.exists()) {
+      const data = userSnap.data()
+      const newCount = (data.posts || 0) + 1
+
+      await setDoc(userRef, { ...data, posts: newCount })
+      currentUser.value.posts = newCount
+
+      if (isViewingOwnProfile()) {
+        viewingUser.value.posts = newCount
+      }
     }
   }
 
   return {
     currentUser,
     viewingUser,
-    isLoggedIn,
-    isViewingOwnProfile,
-    userPosts,
-    whoToFollow,
-    login,
-    createTempUser,
+    loading,
+    init,
     logout,
-    addPost,
+    isViewingOwnProfile,
+    viewUserProfile,
     followUser,
-    viewUserProfile
+    fetchRecommendedFollows,
+    followingUser,
+    incrementUserPostCount
   }
 })

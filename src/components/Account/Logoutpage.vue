@@ -8,8 +8,11 @@ const userStore = useUserStore()
 <template>
   <div class="box">
     <div class="form">
-      <div class="email">
-        {{ userStore.currentUser.id }}
+      <div class="email" v-if="userStore.currentUser">
+        {{ userStore.currentUser.email }}
+      </div>
+      <div v-else>
+        Not logged in
       </div>
       <RouterLink to="/login" @click="userStore.logout">Logout</RouterLink>
     </div>
@@ -42,7 +45,8 @@ const userStore = useUserStore()
 }
 
 a {
-    padding: 10px 100%;
+    width: 100%;
+    padding: 10px;
     border: none;
     background-color: rgb(0, 151, 189);
     color: white;
