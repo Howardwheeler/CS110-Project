@@ -1,11 +1,10 @@
 <script setup>
 import { useUserStore } from '@/stores/user'
-import Homepage from '@/components/Homepage.vue'
 import Guestpage from '@/components/Guestpage.vue'
 
 const userStore = useUserStore()
 </script>
 
 <template>
-  <Homepage />
+  <Guestpage />
 </template>

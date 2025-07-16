@@ -54,5 +54,17 @@ export const usePostStore = defineStore('post', () => {
     loading.value = false
   }
 
-  return { posts, loading, createPost, fetchFeed, fetchUserPosts }
+  async function fetchRecentPosts() {
+    loading.value = true
+    const q = query(
+      collection(firestore, 'posts'),
+      orderBy('timestamp', 'desc'),
+      limit(10)
+    )
+    const snapshot = await getDocs(q)
+    posts.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    loading.value = false
+  }
+
+  return { posts, loading, createPost, fetchFeed, fetchUserPosts, fetchRecentPosts }
 })
