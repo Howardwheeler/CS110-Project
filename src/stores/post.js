@@ -5,10 +5,12 @@ import { firestore } from '@/firebaseResources'
 import { useUserStore } from './user'
 
 export const usePostStore = defineStore('post', () => {
+  //initial constructor
   const posts = ref([])
   const loading = ref(false)
   const userStore = useUserStore()
 
+  //async call to add to post document with new data, then update feed
   async function createPost(content) {
     await addDoc(collection(firestore, 'posts'), {
       userId: userStore.currentUser.id,
@@ -21,6 +23,7 @@ export const usePostStore = defineStore('post', () => {
     await fetchFeed(userStore.currentUser)
   }
 
+  //fetch user feed using query to list out post then map it onto post
   async function fetchFeed(user) {
     loading.value = true
     const ids = [user.id, ...(user.following || [])].slice(0, 10)
@@ -36,6 +39,7 @@ export const usePostStore = defineStore('post', () => {
     loading.value = false
   }
 
+  //fetch feed for specific user
   async function fetchUserPosts(userId) {
     loading.value = true
 

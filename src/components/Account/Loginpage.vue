@@ -4,37 +4,37 @@ import { useRouter } from 'vue-router'
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
 import { getFirestore, doc, setDoc } from 'firebase/firestore'
 
+//get firebase auth, firestore, and router for link
 const auth = getAuth()
 const db = getFirestore()
 const router = useRouter()
 
+//initial constructor
 const activeTab = ref('login')
 const email = ref('')
 const password = ref('')
-const loading = ref(false)
 
+//login vs signup switch
 function switchTab(tab) {
   activeTab.value = tab
 }
 
 async function handleSubmit() {
-  if (!email.value || !password.value) {
+  if (!email.value || !password.value) { //check if both fields valid
     alert('Please enter both email and password')
     return
   }
 
-  loading.value = true
-
   try {
-    if (activeTab.value === 'login') {
+    if (activeTab.value === 'login') { //check for login through firebase, then go home
       const userCredential = await signInWithEmailAndPassword(auth, email.value, password.value)
       const user = userCredential.user
       router.push('/')
-    } else {
+    } else {  //create new auth, then go home
       const userCredential = await createUserWithEmailAndPassword(auth, email.value, password.value)
       const user = userCredential.user
 
-      await setDoc(doc(db, 'users', user.uid), {
+      await setDoc(doc(db, 'users', user.uid), {  //creates a new document in user collections
         email: user.email,
         followers: [],
         following: [],
@@ -44,9 +44,7 @@ async function handleSubmit() {
       router.push('/')
     }
   } catch (error) {
-    alert(error.message)
-  } finally {
-    loading.value = false
+    alert(error.message) //check for eror in login
   }
 }
 </script>

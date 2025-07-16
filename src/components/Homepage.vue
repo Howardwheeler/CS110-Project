@@ -3,19 +3,23 @@ import { ref, onMounted, watch, computed } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { usePostStore } from '@/stores/post'
 
+//makes a prop to access user as an object
 const props = defineProps({
   user: Object
 })
 
+//initialization
 const userStore = useUserStore()
 const postStore = usePostStore()
 const content = ref('')
 const recommended = ref([])
 
+//checks if viewing profile is said profile
 const isOwnProfile = computed(() => {
   return userStore.viewingUser?.id === userStore.currentUser?.id
 })
 
+//fetches feed or user feed depending on what profile
 onMounted(async () => {
   if (isOwnProfile) {
     await postStore.fetchFeed(userStore.currentUser)
@@ -25,6 +29,7 @@ onMounted(async () => {
   }
 })
 
+//reactive mount p much
 watch(() => userStore.viewingUser?.id, async () => {
   if (userStore.isViewingOwnProfile()) {
     await postStore.fetchFeed(userStore.currentUser)
@@ -33,6 +38,7 @@ watch(() => userStore.viewingUser?.id, async () => {
   }
 })
 
+//puts new post in database and increment count
 async function handlePost() {
   if (!content.value.trim()) return
   await postStore.createPost(content.value)

@@ -5,10 +5,12 @@ import { doc, getDoc, getDocs, setDoc, collection } from 'firebase/firestore'
 import { auth, firestore } from '@/firebaseResources'
 
 export const useUserStore = defineStore('user', () => {
+  //initial constructor
   const currentUser = ref(null)
   const viewingUser = ref(null)
   const loading = ref(false)
 
+  //initializes a user 
   async function init() {
     onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -36,16 +38,19 @@ export const useUserStore = defineStore('user', () => {
     })
   }
 
+  //sign out of user lol
   async function logout() {
     await signOut(auth)
     currentUser.value = null
     viewingUser.value = null
   }
 
+  //checks if cur user os view user
   function isViewingOwnProfile() {
     return viewingUser.value?.id === currentUser.value?.id
   }
 
+  //loads stats of another user to view
   async function viewUserProfile(userId) {
     if (userId === currentUser.value?.id) {
       viewingUser.value = currentUser.value
@@ -64,6 +69,7 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  //increment follower and adds to following array
   async function followUser(targetId) {
     if (!currentUser.value) return
 
@@ -83,6 +89,7 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  //gets who to follow by checking non-followed users in docs
   async function fetchRecommendedFollows() {
     const usersSnapshot = await getDocs(collection(firestore, 'users'))
     return usersSnapshot.docs
@@ -93,11 +100,12 @@ export const useUserStore = defineStore('user', () => {
       )
   }
 
+  //returns followed user
   function followingUser(userId) {
     return currentUser.value?.following?.includes(userId) || false
   }
 
-
+  //per post, increment post count in docs
   async function incrementUserPostCount() {
     if (!currentUser.value) return
 
