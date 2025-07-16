@@ -60,7 +60,7 @@ async function handlePost() {
         </div>
 
         <RouterLink v-if="!userStore.currentUser" to="/login" class="login-btn">Login</RouterLink>
-        <RouterLink v-else-if="userStore.viewUserProfile()" to="/login" class="profile-btn" @click="userStore.logout">Logout</RouterLink>
+        <RouterLink v-else-if="isOwnProfile" to="/login" class="profile-btn" @click="userStore.logout">Logout</RouterLink>
         <RouterLink v-else to="/user" class="profile-btn">Back to Profile</RouterLink>
       </div>
     </div>
