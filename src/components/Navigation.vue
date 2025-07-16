@@ -1,12 +1,24 @@
 <script setup>
 import { RouterLink } from 'vue-router';
+import { useUserStore } from '@/stores/user'
+import { computed } from 'vue'
+
+const userStore = useUserStore()
+
+const homeRoute = computed(() => {
+  return userStore.currentUser ? '/user' : '/'
+})
+
+const accountRoute = computed(() => {
+  return userStore.currentUser ? '/logout' : '/login'
+})
 </script>
 
 <template>
-    <header class="nav-box">
-        <RouterLink to="/">Home</RouterLink>
-        <RouterLink to="/login">Login</RouterLink>
-    </header>
+  <header class="nav-box">
+    <RouterLink :to="homeRoute">Home</RouterLink>
+    <RouterLink :to="accountRoute">Login</RouterLink>
+  </header>
 </template>
 
 <style>

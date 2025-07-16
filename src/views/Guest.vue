@@ -1,8 +1,5 @@
 <script setup>
-import { useUserStore } from '@/stores/user'
-import Guestpage from '@/components/Guestpage.vue'
-
-const userStore = useUserStore()
+import Guestpage from '@/components/Home/Guestpage.vue'
 </script>
 
 <template>

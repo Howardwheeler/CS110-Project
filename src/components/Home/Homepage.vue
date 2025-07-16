@@ -74,7 +74,8 @@ async function handlePost() {
             <strong>{{ profileUser.following?.length || 0 }}</strong><div>Following</div>
           </div>
         </div>
-        <RouterLink v-if="isOwnProfile" to="/login" class="profile-btn" @click="userStore.logout">Logout</RouterLink>
+        <RouterLink v-if="isOwnProfile" to="/logout" class="profile-btn" @click="userStore.logout">Logout</RouterLink>
+        <template v-else-if="!userStore.currentUser"></template>
         <RouterLink v-else to="/user" class="profile-btn">Back to Profile</RouterLink>
       </div>
     </div>
@@ -105,12 +106,17 @@ async function handlePost() {
     <div class="who-to-follow">
       <h3>{{ userStore.currentUser ? 'Who to Follow' : 'Recent Users' }}</h3>
 
-      <div v-if="userStore.currentUser">
+      <div v-if="userStore.currentUser === userStore.viewingUser">
         <div v-for="user in recommended" :key="user.id" class="follow-card">
           <div @click="$router.push(`/user/${user.id}`)" class="follow-user">{{ user.email }}</div>
           <button v-if="!userStore.followingUser(user.id)" @click="userStore.followUser(user.id)">Follow</button>
           <button v-else disabled>Following</button>
         </div>
+      </div>
+      <div v-else-if="userStore.viewingUser" class="follow-card">
+        <div class="follow-user">{{ userStore.viewingUser.email }}</div>
+        <button v-if="!userStore.followingUser(userStore.viewingUser.id)" @click="userStore.followUser(userStore.viewingUser.id)">Follow</button>
+        <button v-else disabled>Following</button>
       </div>
       <div v-else>
         <div v-for="user in recentUsers" :key="user.id" class="follow-card">
