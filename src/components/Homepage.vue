@@ -39,20 +39,20 @@ async function handlePost() {
 </script>
 
 <template>
-  <div class="homepage-container">
+  <div class="flex-box">
     <!-- Profile -->
-    <aside class="profile-section">
+    <div class="profile">
       <div class="profile-card">
         <p class="profile-email">{{ props.user.email }}</p>
-        <div class="profile-stats">
+        <div class="stats">
           <div class="stat">
-            <strong>{{ props.user.posts?.length || 0 }}</strong><span>Posts</span>
+            <strong>{{ props.user.posts?.length || 0 }}</strong><div>Posts</div>
           </div>
           <div class="stat">
-            <strong>{{ props.user.followers?.length || 0 }}</strong><span>Followers</span>
+            <strong>{{ props.user.followers?.length || 0 }}</strong><div>Followers</div>
           </div>
           <div class="stat">
-            <strong>{{ props.user.following?.length || 0 }}</strong><span>Following</span>
+            <strong>{{ props.user.following?.length || 0 }}</strong><div>Following</div>
           </div>
         </div>
 
@@ -61,38 +61,38 @@ async function handlePost() {
         </RouterLink>
         <RouterLink v-else to="/login" class="login-btn">Login</RouterLink>
       </div>
-    </aside>
+    </div>
 
     <!-- Posts -->
-    <main class="content-section">
-      <section v-if="isOwnProfile" class="create-post">
+    <div class="content-section">
+      <div v-if="isOwnProfile" class="create-post">
         <textarea v-model="content" placeholder="What's on your mind?" class="post-input" />
         <button @click="handlePost" class="post-btn">Post</button>
-      </section>
+      </div>
 
-      <section class="posts-feed">
+      <div class="posts-feed">
         <div v-if="postStore.loading">Loading posts...</div>
 
-        <article v-for="post in postStore.posts" :key="post.id" class="post-card">
+        <div v-for="post in postStore.posts" :key="post.id" class="post-card">
           <div class="post-header">
             <p class="post-author" @click="$router.push(`/user/${post.userId}`)">{{ post.email }}</p>
-            <span class="post-time">{{ post.date }} • {{ post.time }}</span>
+            <div class="post-time">{{ post.date }} • {{ post.time }}</div>
           </div>
           <div class="post-content">{{ post.content }}</div>
-        </article>
+        </div>
 
         <p v-if="postStore.posts.length === 0">No posts to show</p>
-      </section>
-    </main>
+      </div>
+    </div>
 
     <!-- Who to follow -->
-    <aside class="who-to-follow" v-if="isOwnProfile">
+    <div class="who-to-follow" v-if="isOwnProfile">
       <h3>Who to Follow</h3>
       <div v-for="user in recommended" :key="user.id" class="follow-card">
         <p @click="$router.push(`/user/${user.id}`)" class="follow-user">{{ user.email }}</p>
         <button @click="userStore.followUser(user.id)">Follow</button>
       </div>
-    </aside>
+    </div>
   </div>
 </template>
 
@@ -103,88 +103,77 @@ async function handlePost() {
   justify-content: space-between;
   align-items: flex-start;
   width: 100%;
+  gap: 10px;
+  padding: 10px;
+}
+
+.profile {
+  width: 20%;
 }
 
 .profile-card {
-  background: #fff;
-  border-radius: 10px;
-  padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.profile-email {
-  margin: 0 0 15px;
-  font-size: 1.1rem;
-  color: #333;
-}
-
-.login-box {
-  width: 20%;
+  background-color: #f3f3f3;
+  border-radius: 12px;
+  padding: 15px;
   text-align: center;
 }
 
-.stats-box {
+.profile-email {
+  font-size: large;
+  color: black;
+  margin-bottom: 15px;
+}
+
+.stats {
   display: flex;
   justify-content: space-around;
+  margin-bottom: 15px;
 }
 
 .stat {
-  background: #f5f5f5;
+  background-color: white;
   border-radius: 8px;
   padding: 10px;
+  flex: 1;
+  margin: 0 5px;
   text-align: center;
 }
 
 .stat strong {
   display: block;
-  font-size: 1.2rem;
-  color: #0097bd;
+  font-size: x-large;
+  color: rgb(0, 151, 189);
 }
 
-.stat span {
-  font-size: 0.8rem;
-  color: #666;
+.stat div {
+  font-size: medium;
+  color: gray;
 }
 
-button, .login-btn {
-  width: 100%;
-  padding: 10px;
+button, .profile-btn, .login-btn {
+  padding: 10px 20px;
+  background-color: rgb(0, 151, 189);
+  color: white;
   border: none;
   border-radius: 8px;
-  font-weight: 500;
+  font-size: x-large;
   cursor: pointer;
-  transition: 0.2s;
-}
-
-.logout-btn {
-  background: #ff4444;
-  color: white;
-}
-
-.logout-btn:hover {
-  background: #cc0000;
-}
-
-.profile-btn, .login-btn {
-  background: #0097bd;
-  color: white;
-}
-
-.profile-btn:hover, .login-btn:hover {
-  background: #007799;
+  display: block;
+  margin-top: 10px;
+  text-decoration: none;
 }
 
 .content-section {
+  width: 55%;
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 
 .create-post {
-  background: #fff;
+  background-color: #fff;
   border-radius: 10px;
   padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .post-input {
@@ -193,47 +182,43 @@ button, .login-btn {
   padding: 10px;
   border: 1px solid #ddd;
   border-radius: 8px;
-  margin: 10px 0;
+  margin-bottom: 10px;
   resize: vertical;
 }
 
 .post-btn {
-  background: #0097bd;
-  color: white;
-  padding: 8px 15px;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-}
-
-.post-btn:hover {
-  background: #007799;
+  background-color: rgb(0, 151, 189);
 }
 
 .posts-feed {
   display: flex;
   flex-direction: column;
   gap: 15px;
+  max-height: 650px;
+  overflow-y: auto;
+}
+
+.posts-feed::-webkit-scrollbar {
+  display: none;
 }
 
 .post-card {
-  background: #fff;
-  border-radius: 10px;
+  background-color: white;
+  border-radius: 8px;
   padding: 15px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
 .post-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
   margin-bottom: 10px;
 }
 
 .post-author {
-  color: #0097bd;
+  font-weight: bold;
+  color: rgb(0, 151, 189);
   cursor: pointer;
-  margin: 0;
 }
 
 .post-author:hover {
@@ -241,17 +226,52 @@ button, .login-btn {
 }
 
 .post-time {
-  color: #666;
   font-size: 0.8rem;
+  color: gray;
 }
 
 .post-content {
-  line-height: 1.5;
+  font-size: large;
+  color: black;
 }
 
-.loading, .empty-feed {
+.who-to-follow {
+  width: 20%;
+  background-color: #f3f3f3;
+  border-radius: 12px;
+  padding: 15px;
+}
+
+.who-to-follow h3 {
   text-align: center;
-  padding: 20px;
-  color: #666;
+  margin-bottom: 10px;
+  color: black;
+}
+
+.follow-card {
+  background-color: white;
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.follow-user {
+  font-size: medium;
+  color: black;
+  cursor: pointer;
+}
+
+.follow-card button {
+  background-color: rgb(0, 151, 189);
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: medium;
+  cursor: pointer;
+  margin: auto 0;
 }
 </style>
