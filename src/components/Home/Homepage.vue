@@ -27,7 +27,7 @@ onMounted(async () => {
   if (!userId || userId === userStore.currentUser?.id) {
     profileUser.value = userStore.currentUser
     await postStore.fetchFeed(userStore.currentUser)
-    recommended.value = await userStore.fetchRecommendedFollows()
+    recommended.value = await userStore.fetchRecommendedFollows(6)
   } else {
     await userStore.viewUserProfile(userId)
     profileUser.value = userStore.viewingUser
@@ -40,7 +40,7 @@ watch(() => route.params.id, async (newId) => {
   if (!newId || newId === userStore.currentUser?.id) {
     profileUser.value = userStore.currentUser
     await postStore.fetchFeed(userStore.currentUser)
-    recommended.value = await userStore.fetchRecommendedFollows()
+    recommended.value = await userStore.fetchRecommendedFollows(6)
   } else {
     await userStore.viewUserProfile(newId)
     profileUser.value = userStore.viewingUser

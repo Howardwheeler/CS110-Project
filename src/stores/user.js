@@ -105,8 +105,9 @@ export const useUserStore = defineStore('user', () => {
   }
 
   //gets who to follow by checking non-followed users in docs
-  async function fetchRecommendedFollows() {
-    const usersSnapshot = await getDocs(collection(firestore, 'users'))
+  async function fetchRecommendedFollows(max = 6) {
+    const q = query(collection(firestore, 'users'), limit(max))
+    const usersSnapshot = await getDocs(q)
     return usersSnapshot.docs
       .map(doc => ({ id: doc.id, ...doc.data() }))
       .filter(user =>
