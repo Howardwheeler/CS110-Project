@@ -115,7 +115,8 @@ async function handlePost() {
       </div>
       <div v-else-if="userStore.viewingUser" class="follow-card">
         <div class="follow-user">{{ userStore.viewingUser.email }}</div>
-        <button v-if="!userStore.followingUser(userStore.viewingUser.id)" @click="userStore.followUser(userStore.viewingUser.id)">Follow</button>
+        <button v-if="!userStore.followingUser(userStore.viewingUser.id) && userStore.currentUser" @click="userStore.followUser(userStore.viewingUser.id)">Follow</button>
+        <div v-else-if="!userStore.currentUser"></div>
         <button v-else disabled>Following</button>
       </div>
       <div v-else>
