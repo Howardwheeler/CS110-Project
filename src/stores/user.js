@@ -16,17 +16,17 @@ export const useUserStore = defineStore('user', () => {
       if (user) {
         const userDoc = await getDoc(doc(firestore, 'users', user.uid))
         const data = userDoc.exists() ? userDoc.data() : {
-          followers: [],
           following: [],
-          posts: 0
+          posts: [],
+          allergens: [],
         }
 
         const formattedUser = {
           id: user.uid,
           email: user.email,
-          followers: data.followers,
-          following: data.following,
-          posts: data.posts
+          following: data.following || [],
+          posts: data.posts || [],
+          allergens: data.allergens || [],
         }
 
         currentUser.value = formattedUser
@@ -45,111 +45,40 @@ export const useUserStore = defineStore('user', () => {
     viewingUser.value = null
   }
 
-  //checks if cur user os view user
-  function isViewingOwnProfile() {
-    return viewingUser.value?.id === currentUser.value?.id
+  async function getUser(userId) {
+    const userDoc = await getDoc(doc(firestore, 'users', userId))
+    return userDoc.exists() ? { id: userId, ...userDoc.data() } : null
   }
 
-  //loads stats of another user to view
-  async function viewUserProfile(userId) {
-    if (userId === currentUser.value?.id) {
-      viewingUser.value = currentUser.value
-    } else {
-      const userDoc = await getDoc(doc(firestore, 'users', userId))
-      if (userDoc.exists()) {
-        const data = userDoc.data()
-        viewingUser.value = {
-          id: userId,
-          email: data.email,
-          followers: data.followers,
-          following: data.following,
-          posts: data.posts
-        }
-      }
+  async function addUserFeed(userId, postId) {
+    const user = await getUser(userId)
+    if (user) {
+      const updatedFeed = [postId, ...(user.feed || [])]
+      await setDoc(doc(firestore, 'users', userId), { ...user, feed: updatedFeed }, { merge: true })
     }
   }
 
-  //increment follower and adds to following array
-  async function followUser(targetId) {
+  async function addUserPost(userId, postId) {
+    const user = await getUser(userId)
+    if (user) {
+      const updatedPosts = [postId, ...(user.posts || [])]
+      await setDoc(doc(firestore, 'users', userId), { ...user, posts: updatedPosts }, { merge: true })
+    }
+  }
+
+  async function setUserAllergens(allergens) {
     if (!currentUser.value) return
-
-    //Update current user's following
-    const currentUserRef = doc(firestore, 'users', currentUser.value.id)
-    const currentUserSnap = await getDoc(currentUserRef)
-
-    if (currentUserSnap.exists()) {
-      const currentData = currentUserSnap.data()
-      const updatedFollowing = [...new Set([...currentData.following, targetId])]
-
-      await setDoc(currentUserRef, {
-        ...currentData,
-        following: updatedFollowing
-      })
-
-      currentUser.value.following = updatedFollowing
-    }
-
-    //Update target user's followers
-    const targetUserRef = doc(firestore, 'users', targetId)
-    const targetUserSnap = await getDoc(targetUserRef)
-
-    if (targetUserSnap.exists()) {
-      const targetData = targetUserSnap.data()
-      const updatedFollowers = [...new Set([...targetData.followers, currentUser.value.id])]
-
-      await setDoc(targetUserRef, {
-        ...targetData,
-        followers: updatedFollowers
-      })
-    }
-  }
-
-  //gets who to follow by checking non-followed users in docs
-  async function fetchRecommendedFollows(max = 6) {
-    const q = query(collection(firestore, 'users'), limit(max))
-    const usersSnapshot = await getDocs(q)
-    return usersSnapshot.docs
-      .map(doc => ({ id: doc.id, ...doc.data() }))
-      .filter(user =>
-        user.id !== currentUser.value.id &&
-        !currentUser.value.following.includes(user.id)
-      )
-  }
-
-  //returns followed user
-  function followingUser(userId) {
-    return currentUser.value?.following?.includes(userId) || false
-  }
-
-  //per post, increment post count in docs
-  async function incrementUserPostCount() {
-    if (!currentUser.value) return
-
     const userRef = doc(firestore, 'users', currentUser.value.id)
-    const userSnap = await getDoc(userRef)
-
-    if (userSnap.exists()) {
-      const data = userSnap.data()
-      const newCount = (data.posts || 0) + 1
-
-      await setDoc(userRef, { ...data, posts: newCount })
-      currentUser.value.posts = newCount
-
-      if (isViewingOwnProfile()) {
-        viewingUser.value.posts = newCount
-      }
-    }
+    await setDoc(userRef, { ...currentUser.value, allergens }, { merge: true })
+    currentUser.value.allergens = allergens
   }
 
-  async function fetchRecentUsers(max = 5) {
-    try {
-      const q = query(collection(firestore, 'users'), limit(max))
-      const snapshot = await getDocs(q)
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-    } catch (err) {
-      console.error('Failed to fetch recent users:', err)
-      return []
-    }
+  async function followGroup(groupId) {
+    if (!currentUser.value) return
+    const userRef = doc(firestore, 'users', currentUser.value.id)
+    const updatedFollowing = [...new Set([...(currentUser.value.following || []), groupId])]
+    await setDoc(userRef, { ...currentUser.value, following: updatedFollowing }, { merge: true })
+    currentUser.value.following = updatedFollowing
   }
 
   return {
@@ -158,12 +87,10 @@ export const useUserStore = defineStore('user', () => {
     loading,
     init,
     logout,
-    isViewingOwnProfile,
-    viewUserProfile,
-    followUser,
-    fetchRecommendedFollows,
-    followingUser,
-    incrementUserPostCount,
-    fetchRecentUsers
+    setUserAllergens,
+    followGroup,
+    getUser,
+    addUserFeed,
+    addUserPost
   }
 })
