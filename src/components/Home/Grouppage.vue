@@ -1,10 +1,35 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
+import { useRoute, RouterLink } from 'vue-router'
+import { useUserStore } from '@/stores/user'
 import { usePostStore } from '@/stores/post'
 import { useGroupStore } from '@/stores/group'
 
+const route = useRoute()
+const userStore = useUserStore()
 const postStore = usePostStore()
 const groupStore = useGroupStore()
+
+const groupFeed = ref([])
+const allergenFilter = ref(false)
+
+const recommendedGroups = computed(() => {
+  if (!groupStore.groups.length || !groupStore.currentGroup) return []
+  const following = userStore.currentUser?.following || []
+  return groupStore.groups
+    .filter(
+      group =>
+        group.id !== groupStore.currentGroup.id &&
+        !following.includes(group.id)
+    )
+    .slice(0, 5)
+})
+
+const isFollowing = computed(() => {
+  return userStore.currentUser && 
+         userStore.currentUser.following && 
+         userStore.currentUser.following.includes(groupStore.currentGroup?.id)
+})
 
 function formatTimestamp(ts) {
   if (!ts) return ''
@@ -21,41 +46,102 @@ function formatTimestamp(ts) {
          (date.getMonth() + 1) + '/' + date.getDate() + '/' + date.getFullYear()
 }
 
+async function handleFollow() {
+  if (userStore.currentUser && groupStore.currentGroup) {
+    await userStore.followGroup(groupStore.currentGroup.id)
+  }
+}
+
 onMounted(async () => {
+  await groupStore.initGroup(route.params.id)
   await groupStore.fetchGroups()
-  await postStore.fetchRecentPosts()
+  groupFeed.value = await postStore.fetchGroupFeed(groupStore.currentGroup.id)
+})
+
+watch(() => route.params.id, async (newId) => {
+  if (newId) {
+    await groupStore.initGroup(newId)
+    groupFeed.value = await postStore.fetchGroupFeed(newId)
+  }
 })
 </script>
 
 <template>
-  <div class="layout">
-    <!-- Login Sidebar -->
+  <div v-if="groupStore.currentGroup" class="layout">
+    <!-- Group Info Sidebar -->
     <aside class="sidebar">
-      <div class="login-card">
-        <div class="login-header">
-          <h2 class="welcome-title">Welcome</h2>
+      <div class="group-card">
+        <div class="group-header">
+          <h2 class="group-name">{{ groupStore.currentGroup?.name }}</h2>
         </div>
-        <RouterLink to="/account" class="btn btn-primary btn-large">
-          Login to Share Recipes
-        </RouterLink>
+        
+        <div class="stats">
+          <div class="stat">
+            <span class="stat-number">{{ groupStore.currentGroup?.feed?.length || 0 }}</span>
+            <span class="stat-label">Posts</span>
+          </div>
+          <div class="stat follow-stat">
+            <div class="follow-status">
+              <span v-if="isFollowing" class="following-badge">Following</span>
+              <button 
+                v-else-if="userStore.currentUser"
+                @click="handleFollow"
+                class="btn btn-primary"
+              >
+                Follow
+              </button>
+              <span v-else class="not-logged-in">Login to Follow</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="group-actions">
+          <RouterLink 
+            v-if="userStore.currentUser" 
+            to="/user" 
+            class="btn btn-outline"
+          >
+            Back to Profile
+          </RouterLink>
+          <RouterLink 
+            v-else 
+            to="/" 
+            class="btn btn-outline"
+          >
+            Back to Home
+          </RouterLink>
+        </div>
+
+        <div v-if="userStore.currentUser" class="filter-section">
+          <button 
+            @click="async () => {
+              postStore.toggleAllergyFilter()
+              userFeed.value = await postStore.fetchUserFeed(userStore.currentUser.id)
+            }" 
+            class="btn btn-outline"
+          >
+            {{ postStore.allergyFilterEnabled ? 'Show All Posts' : 'Hide Allergens' }}
+          </button>
+        </div>
       </div>
     </aside>
 
-    <!-- Main Content - Posts Feed -->
+    <!-- Main Content - Group Feed -->
     <main class="main-content">
       <div class="feed-header">
-        <h1 class="feed-title">Recipes</h1>
+        <h1 class="feed-title">{{ groupStore.currentGroup?.name }} Recipes</h1>
+        <p class="feed-subtitle">Discover recipes shared by this group</p>
       </div>
 
       <div class="posts-feed">
         <div v-if="postStore.loading" class="loading-message">
         </div>
         
-        <div v-else-if="!postStore.loading && postStore.posts.length === 0" class="empty-message">
+        <div v-else-if="groupFeed.length === 0" class="empty-message">
           <h3>No recipes yet</h3>
         </div>
 
-        <article v-for="post in postStore.posts" :key="post.id" class="post-card">
+        <article v-for="post in groupFeed" :key="post.id" class="post-card">
           <header class="post-header">
             <div class="post-author">{{ post.email }}</div>
             <time class="post-time">{{ formatTimestamp(post.timestamp) }}</time>
@@ -84,22 +170,27 @@ onMounted(async () => {
       </div>
     </main>
 
-    <!-- Groups Sidebar -->
-    <aside class="groups-sidebar">
-      <div class="groups-card">
-        <h3 class="card-title">Recent Groups</h3>
-        <div class="groups-list">
-          <div v-for="group in groupStore.groups" :key="group.id" class="group-item">
-            <div @click="$router.push(`/user/${group.id}`)" class="group-name">
+    <!-- Recommended Groups Sidebar -->
+    <aside class="recommendations">
+      <div class="recommendations-card">
+        <h3 class="card-title">Recommended Groups</h3>
+        <div class="recommendations-list">
+          <div v-for="group in recommendedGroups" :key="group.id" class="recommendation-item">
+            <div @click="$router.push(`/user/${group.id}`)" class="recommendation-name">
               {{ group.name }}
             </div>
           </div>
-          <div v-if="groupStore.groups.length === 0" class="empty-groups">
-            No groups available yet.
+          <div v-if="recommendedGroups.length === 0" class="empty-recommendations">
+            No more groups to recommend.
           </div>
         </div>
       </div>
     </aside>
+  </div>
+  
+  <div v-else class="loading-screen">
+    <div class="loading-spinner"></div>
+    <p>Loading group...</p>
   </div>
 </template>
 
@@ -116,37 +207,119 @@ onMounted(async () => {
   background: #f8fafc;
 }
 
-/* Login Sidebar */
+/* Group Info Sidebar */
 .sidebar {
   position: sticky;
   top: 24px;
   height: fit-content;
 }
 
-.login-card {
+.group-card {
   background: white;
   border-radius: 16px;
   padding: 24px;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   border: 1px solid rgba(0, 0, 0, 0.05);
-  text-align: center;
 }
 
-.login-header {
+.group-header {
+  text-align: center;
   margin-bottom: 24px;
 }
 
-.welcome-title {
-  font-size: 24px;
+.group-name {
+  font-size: 20px;
   font-weight: 700;
   color: #1f2937;
-  margin-bottom: 8px;
+  margin: 0;
+  word-break: break-word;
 }
 
-.welcome-text {
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.stat {
+  background: #667eea;
+  color: white;
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-number {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.stat-label {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.follow-stat {
+  background: #f9fafb;
+  color: #374151;
+  border: 2px solid #e5e7eb;
+}
+
+.follow-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.following-badge {
+  background: #10b981;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.not-logged-in {
   color: #6b7280;
-  line-height: 1.5;
-  margin: 0;
+  font-size: 12px;
+  text-align: center;
+}
+
+.group-actions {
+  margin-bottom: 24px;
+}
+
+.filter-section {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 16px;
+}
+
+.filter-toggle {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  gap: 8px;
+}
+
+.filter-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #667eea;
+}
+
+.filter-label {
+  font-size: 14px;
+  color: #374151;
+  font-weight: 500;
 }
 
 /* Main Content */
@@ -162,7 +335,7 @@ onMounted(async () => {
 }
 
 .feed-title {
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 700;
   color: #1f2937;
   margin-bottom: 8px;
@@ -170,7 +343,7 @@ onMounted(async () => {
 
 .feed-subtitle {
   color: #6b7280;
-  font-size: 18px;
+  font-size: 16px;
   margin: 0;
 }
 
@@ -316,14 +489,14 @@ onMounted(async () => {
   font-weight: 600;
 }
 
-/* Groups Sidebar */
-.groups-sidebar {
+/* Recommendations */
+.recommendations {
   position: sticky;
   top: 24px;
   height: fit-content;
 }
 
-.groups-card {
+.recommendations-card {
   background: white;
   border-radius: 16px;
   padding: 24px;
@@ -339,31 +512,31 @@ onMounted(async () => {
   text-align: center;
 }
 
-.groups-list {
+.recommendations-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.group-item {
+.recommendation-item {
   background: #f9fafb;
   border-radius: 12px;
   padding: 16px;
   transition: background-color 0.2s;
 }
 
-.group-item:hover {
+.recommendation-item:hover {
   background: #f3f4f6;
 }
 
-.group-name {
+.recommendation-name {
   font-weight: 500;
   color: #374151;
   cursor: pointer;
   transition: color 0.2s;
 }
 
-.group-name:hover {
+.recommendation-name:hover {
   color: #667eea;
 }
 
@@ -381,11 +554,15 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   min-height: 48px;
+  width: 100%;
 }
 
 .btn-primary {
   background: #667eea;
   color: white;
+  font-size: 12px;
+  padding: 6px 12px;
+  min-height: 32px;
 }
 
 .btn-primary:hover {
@@ -394,13 +571,27 @@ onMounted(async () => {
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
-.btn-large {
-  padding: 16px 32px;
-  font-size: 18px;
-  min-height: 56px;
+.btn-outline {
+  background: white;
+  color: #667eea;
+  border: 2px solid #667eea;
+}
+
+.btn-outline:hover {
+  background: #667eea;
+  color: white;
 }
 
 /* Loading and Empty States */
+.loading-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: #f8fafc;
+}
+
 .loading-message {
   display: flex;
   flex-direction: column;
@@ -442,7 +633,7 @@ onMounted(async () => {
   margin: 0;
 }
 
-.empty-groups {
+.empty-recommendations {
   text-align: center;
   color: #6b7280;
   font-size: 14px;
@@ -463,7 +654,7 @@ onMounted(async () => {
   }
   
   .sidebar,
-  .groups-sidebar {
+  .recommendations {
     position: static;
   }
   
@@ -478,12 +669,16 @@ onMounted(async () => {
     gap: 16px;
   }
   
-  .feed-title {
-    font-size: 28px;
+  .stats {
+    grid-template-columns: 1fr;
   }
   
-  .welcome-title {
-    font-size: 20px;
+  .feed-title {
+    font-size: 24px;
+  }
+  
+  .group-name {
+    font-size: 18px;
   }
   
   .posts-feed {

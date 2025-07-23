@@ -1,7 +1,7 @@
 <script setup>
-import Homepage from '@/components/Home/Homepage.vue'
+import GroupPage from '@/components/Home/Grouppage.vue'
 </script>
 
 <template>
-  <Homepage />
+  <GroupPage />
 </template>
