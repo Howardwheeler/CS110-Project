@@ -112,11 +112,16 @@ watch(() => route.params.id, async (newId) => {
           </RouterLink>
         </div>
 
-        <div class="filter-section">
-          <label class="filter-toggle">
-            <input type="checkbox" v-model="allergenFilter" />
-            <span class="filter-label">Hide Allergens</span>
-          </label>
+        <div v-if="userStore.currentUser" class="filter-section">
+          <button 
+            @click="async () => {
+              postStore.toggleAllergyFilter()
+              userFeed.value = await postStore.fetchUserFeed(userStore.currentUser.id)
+            }" 
+            class="btn btn-outline"
+          >
+            {{ postStore.allergyFilterEnabled ? 'Show All Posts' : 'Hide Allergens' }}
+          </button>
         </div>
       </div>
     </aside>
