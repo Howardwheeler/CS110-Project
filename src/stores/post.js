@@ -21,11 +21,27 @@ export const usePostStore = defineStore('post', () => {
       return postList
     }
 
-    const userAllergens = userStore.currentUser.allergens.map(a => a.toLowerCase())
+    const userAllergens = userStore.currentUser.allergens.map(a =>
+      a.toLowerCase().trim()
+    )
 
     return postList.filter(post => {
-      const ingredients = (post.ingredients || []).map(i => i.toLowerCase())
-      return !ingredients.some(ingredient => userAllergens.includes(ingredient))
+      if (!Array.isArray(post.ingredients) || post.ingredients.length === 0) {
+        return true
+      }
+
+      const hasAllergen = post.ingredients.some(ingredient => {
+        let ingredientName = ''
+        if (typeof ingredient === 'string') {
+          ingredientName = ingredient.toLowerCase().trim()
+        } else if (ingredient?.name) {
+          ingredientName = String(ingredient.name).toLowerCase().trim()
+        }
+        if (!ingredientName) return false
+        return userAllergens.some(allergen => ingredientName.includes(allergen))
+      })
+
+      return !hasAllergen
     })
   }
 
@@ -63,45 +79,6 @@ export const usePostStore = defineStore('post', () => {
     return postDoc.exists() ? { id: postId, ...postDoc.data() } : null
   }
 
-  // Fetch a group's feed
-  async function fetchGroupFeed(groupId) {
-    loading.value = true
-    try {
-      // 1. Get group document reference
-      const groupDocRef = doc(firestore, 'groups', groupId)
-
-      // 2. Fetch the document
-      const groupDocSnap = await getDoc(groupDocRef)
-
-      if (groupDocSnap.exists()) {
-        const groupData = groupDocSnap.data()
-
-        // 3. Get post IDs from the feed
-        const postIds = Array.isArray(groupData.feed) ? groupData.feed : []
-
-        // 4. Fetch each post by ID
-        const postDocs = await Promise.all(
-          postIds.map(postId => getDoc(doc(firestore, 'posts', postId)))
-        )
-
-        // 5. Filter and format
-        loading.value = false
-        const allPosts = postDocs
-          .filter(doc => doc.exists())
-          .map(doc => ({ id: doc.id, ...doc.data() }))
-
-          return posts.value = applyAllergyFilter(allPosts)
-      } else {
-        loading.value = false
-        return posts.value = [] // No group found
-      }
-    } catch (error) {
-      console.error('Error fetching group feed:', error)
-      loading.value = false
-      return posts.value = []
-    }
-  }
-
   async function fetchUserFeed(userId) {
     loading.value = true
     try {
@@ -114,27 +91,59 @@ export const usePostStore = defineStore('post', () => {
         const postDocs = await Promise.all(
           postIds.map(postId => getDoc(doc(firestore, 'posts', postId)))
         )
-        loading.value = false
         const allPosts = postDocs
           .filter(doc => doc.exists())
           .map(doc => ({ id: doc.id, ...doc.data() }))
-
-        return posts.value = applyAllergyFilter(allPosts)
-      } else {
+        posts.value = applyAllergyFilter(allPosts)
         loading.value = false
-        return posts.value = []
+        return posts.value
+      } else {
+        posts.value = []
+        loading.value = false
+        return posts.value
       }
     } catch (error) {
-      console.error('Error fetching user feed:', error)
+      posts.value = []
       loading.value = false
-      returnposts.value = []
+      return posts.value
+    }
+  }
+
+  async function fetchGroupFeed(groupId) {
+    loading.value = true
+    try {
+      const groupDocRef = doc(firestore, 'groups', groupId)
+      const groupDocSnap = await getDoc(groupDocRef)
+
+      if (groupDocSnap.exists()) {
+        const groupData = groupDocSnap.data()
+        const postIds = Array.isArray(groupData.feed) ? groupData.feed : []
+        const postDocs = await Promise.all(
+          postIds.map(postId => getDoc(doc(firestore, 'posts', postId)))
+        )
+        const allPosts = postDocs
+          .filter(doc => doc.exists())
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+        posts.value = applyAllergyFilter(allPosts)
+        loading.value = false
+        return posts.value
+      } else {
+        posts.value = []
+        loading.value = false
+        return posts.value
+      }
+    } catch (error) {
+      posts.value = []
+      loading.value = false
+      return posts.value
     }
   }
 
   async function fetchRecentPosts() {
     loading.value = true
     const snapshot = await getDocs(collection(firestore, 'posts'))
-    posts.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    const allPosts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    posts.value = applyAllergyFilter(allPosts)
     loading.value = false
   }
 

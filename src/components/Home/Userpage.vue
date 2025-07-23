@@ -16,7 +16,7 @@ const description = ref('')
 const ingredients = ref([{ name: '', quantity: '' }])
 const steps = ref([''])
 const allergenFilter = ref(false)
-const userFeed = ref([])
+const userFeed = computed(() => postStore.posts)
 const recommendedGroups = ref([])
 
 async function handlePost() {
@@ -40,7 +40,7 @@ async function handlePost() {
   steps.value = ['']
 
   // Refresh the feed
-  userFeed.value = await postStore.fetchUserFeed(userStore.currentUser.id)
+  //userFeed.value = await postStore.fetchUserFeed(userStore.currentUser.id)
 }
 
 function formatTimestamp(ts) {
@@ -69,7 +69,7 @@ onMounted(async () => {
 watch(() => route.params.id, async (newId) => {
   if (newId) {
     await userStore.initUser(newId)
-    userFeed.value = await postStore.fetchUserFeed(newId)
+    //userFeed.value = await postStore.fetchUserFeed(newId)
   }
 })
 
@@ -121,7 +121,7 @@ function handleLogout() {
           <button 
             @click="async () => {
               postStore.toggleAllergyFilter()
-              userFeed.value = await postStore.fetchUserFeed(userStore.currentUser.id)
+              await postStore.fetchUserFeed(userStore.currentUser.id)
             }" 
             class="btn btn-outline"
           >
